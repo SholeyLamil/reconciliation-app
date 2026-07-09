@@ -186,6 +186,19 @@ def in_date_range(dt, date_range):
         return date_range[0] <= d <= date_range[1]
     return d == date_range
 
+def _find_header_row(ws):
+    """Scan worksheet rows to find the actual header row, skipping metadata rows."""
+    for rnum in range(1, min(ws.max_row + 1, 11)):
+        row = [ws.cell(rnum, c).value for c in range(1, ws.max_column + 1)]
+        non_empty = sum(1 for v in row if v is not None and str(v).strip())
+        if non_empty < 3:
+            continue
+        combined = ' '.join(str(v or '') for v in row)
+        if any(kw in combined for kw in ['chamswitch', 'Report_', 'Daily_Classic']):
+            continue
+        return [str(v).strip() if v is not None else '' for v in row], rnum
+    raise ValueError('Could not find header row in file')
+
 def load_file_rows(fpath):
     """Load headers and data rows from .xlsx or .csv. Returns (headers, rows)."""
     if fpath.lower().endswith('.csv'):
@@ -206,8 +219,8 @@ def load_file_rows(fpath):
         return headers, rows
     wb = openpyxl.load_workbook(fpath, data_only=True)
     ws = wb[wb.sheetnames[0]]
-    headers = [c.value for c in ws[1]]
-    rows = [r for r in ws.iter_rows(min_row=2, values_only=True) if tuple(r) != tuple(headers)]
+    headers, hr = _find_header_row(ws)
+    rows = [r for r in ws.iter_rows(min_row=hr + 1, values_only=True) if tuple(r) != tuple(headers)]
     wb.close()
     return headers, rows
 

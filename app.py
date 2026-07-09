@@ -59,7 +59,7 @@ def classify_file(headers):
 
     return None
 
-def read_currencies_from_file(fpath, cur_col_header):
+def read_currencies_from_file(fpath, cur_col_header, header_row=1):
     """Scan all data rows and return set of currencies found."""
     currencies = set()
     ext = os.path.splitext(fpath)[1].lower()
@@ -76,11 +76,11 @@ def read_currencies_from_file(fpath, cur_col_header):
         else:
             wb = openpyxl.load_workbook(fpath, data_only=True)
             ws = wb[wb.sheetnames[0]]
-            h = [str(c.value).strip().lower() for c in ws[1]]
+            h = [str(c.value).strip().lower() for c in ws[header_row]]
             if cur_col_header in h:
                 ci = h.index(cur_col_header)
-                for row in ws.iter_rows(min_row=2, values_only=True):
-                    if row[ci]:
+                for row in ws.iter_rows(min_row=header_row + 1, values_only=True):
+                    if row and len(row) > ci and row[ci]:
                         currencies.add(str(row[ci]).strip().upper())
             wb.close()
     except Exception:
@@ -109,6 +109,21 @@ uploaded_files = st.file_uploader(
     label_visibility='collapsed',
 )
 
+def _find_headers(ws):
+    """Read rows until we find one that looks like a header row.
+       Returns (header_list, row_number) or raises ValueError."""
+    for rnum in range(1, min(ws.max_row + 1, 11)):
+        row = [ws.cell(rnum, c).value for c in range(1, ws.max_column + 1)]
+        non_empty = sum(1 for v in row if v is not None and str(v).strip())
+        if non_empty < 3:
+            continue  # metadata row
+        h = [str(v).strip() for v in row if v is not None]
+        h_lower = [str(v).strip().lower() for v in row if v is not None]
+        if any(kw in ' '.join(h) for kw in ['chamswitch', 'Report_', 'Daily_Classic']):
+            continue  # still metadata
+        return [str(v).strip() if v is not None else '' for v in row], rnum
+    raise ValueError('Could not find header row in file')
+
 # ── Process uploads ─────────────────────────────────────-
 if uploaded_files:
     pelpay_file = None
@@ -122,6 +137,7 @@ if uploaded_files:
         tmp.close()
 
         try:
+            header_row = 1
             if ext == '.csv':
                 with open(tpath, encoding='utf-8-sig', newline='') as fh:
                     reader = csv.reader(fh)
@@ -129,7 +145,7 @@ if uploaded_files:
             else:
                 wb = openpyxl.load_workbook(tpath, data_only=True)
                 ws = wb[wb.sheetnames[0]]
-                hdrs = [c.value for c in ws[1]]
+                hdrs, header_row = _find_headers(ws)
                 wb.close()
 
             cls = classify_file(hdrs)
@@ -157,7 +173,7 @@ if uploaded_files:
             # Settlement file — detect all currencies present
             currencies = set()
             if cur_col:
-                currencies = read_currencies_from_file(tpath, cur_col)
+                currencies = read_currencies_from_file(tpath, cur_col, header_row)
             if not currencies:
                 c = currency_from_filename(tpath)
                 if c: currencies.add(c)

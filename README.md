@@ -10,6 +10,12 @@ Reconciles Pelpay transactions against settlement files from Cybersource, Choice
 | `app.py` | Streamlit UI — upload files, run reconciliation, download results |
 | `reconciliation_workbook_format.md` | Detailed spec of the output workbook layout |
 
+## Documentation
+
+- [`docs/DOCUMENTATION.md`](docs/DOCUMENTATION.md) — full technical documentation (architecture, pipeline, reconciliation logic, output workbook, deployment)
+- [`docs/TESTING.md`](docs/TESTING.md) — test report, coverage, and bug history
+- [`reconciliation_workbook_format.md`](reconciliation_workbook_format.md) — detailed output-workbook layout spec
+
 ## Quick Start
 
 ```bash

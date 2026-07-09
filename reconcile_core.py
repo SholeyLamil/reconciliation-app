@@ -149,9 +149,9 @@ def detect_date_range(settlement_files, schemas=None):
 def load_pelpay(path):
     wb = openpyxl.load_workbook(path, data_only=True)
     ws = wb[wb.sheetnames[0]]
-    headers = [c.value for c in ws[1]]
+    headers, hr = _find_header_row(ws)
     res, idx = resolve_headers(headers, PELPAY_ALIASES, 'Pelpay')
-    rows = [r for r in ws.iter_rows(min_row=2, values_only=True) if tuple(r) != tuple(headers)]
+    rows = [r for r in ws.iter_rows(min_row=hr + 1, values_only=True) if tuple(r) != tuple(headers)]
     wb.close()
 
     pel_by_ref = {}

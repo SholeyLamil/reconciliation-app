@@ -13,7 +13,7 @@ import streamlit as st
 import openpyxl
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from reconcile_core import run, DEFAULT_SCHEMAS, detect_date_range
+from reconcile_core import run, DEFAULT_SCHEMAS, detect_date_range, _find_header_row
 
 st.set_page_config(page_title='Reconciliation App', layout='wide')
 st.title('Gateway ↔ Pelpay Settlement Reconciliation')
@@ -109,21 +109,6 @@ uploaded_files = st.file_uploader(
     label_visibility='collapsed',
 )
 
-def _find_headers(ws):
-    """Read rows until we find one that looks like a header row.
-       Returns (header_list, row_number) or raises ValueError."""
-    for rnum in range(1, min(ws.max_row + 1, 11)):
-        row = [ws.cell(rnum, c).value for c in range(1, ws.max_column + 1)]
-        non_empty = sum(1 for v in row if v is not None and str(v).strip())
-        if non_empty < 3:
-            continue  # metadata row
-        h = [str(v).strip() for v in row if v is not None]
-        h_lower = [str(v).strip().lower() for v in row if v is not None]
-        if any(kw in ' '.join(h) for kw in ['chamswitch', 'Report_', 'Daily_Classic']):
-            continue  # still metadata
-        return [str(v).strip() if v is not None else '' for v in row], rnum
-    raise ValueError('Could not find header row in file')
-
 # ── Process uploads ─────────────────────────────────────-
 if uploaded_files:
     pelpay_file = None
@@ -145,7 +130,7 @@ if uploaded_files:
             else:
                 wb = openpyxl.load_workbook(tpath, data_only=True)
                 ws = wb[wb.sheetnames[0]]
-                hdrs, header_row = _find_headers(ws)
+                hdrs, header_row = _find_header_row(ws)
                 wb.close()
 
             cls = classify_file(hdrs)

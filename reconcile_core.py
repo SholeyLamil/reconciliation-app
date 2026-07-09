@@ -284,14 +284,21 @@ def load_settlements(pel_by_ref, settlement_files, date_range, schemas=None):
         else:
             merged[key] = dict(s)
 
-    # Phase 3: match + compute exceptions per merged group using combined settle_refs
+    # Phase 3: match + compute exceptions per merged group.
+    # Pool settled refs across ALL gateways for each (merchant, currency): a txn
+    # settled under one gateway must not be flagged "missing" by another gateway.
+    settled_by_mc = defaultdict(set)
+    for s in merged.values():
+        settled_by_mc[(s['merchant'], s['currency'])].update(s['settle_refs'])
+
+    exc_seen = set()  # a genuinely-missing ref is reported once, not per gateway
     sections = []
     for key, s in merged.items():
         schema = s['schema']
         s_idx = s['s_idx']
         s_headers = s['headers']
         matched, unmatched, exc = [], [], []
-        all_refs = s['settle_refs']
+        all_refs = settled_by_mc[(s['merchant'], s['currency'])]
 
         for r in s['rows']:
             ref = norm(r[s_idx[schema['ref']]])
@@ -306,8 +313,10 @@ def load_settlements(pel_by_ref, settlement_files, date_range, schemas=None):
             if (p['status'] == 'Successful' and p['currency'] == s['currency']
                 and p['merchant'].title() == s['merchant']
                 and p['dt'] and in_date_range(p['dt'], date_range)
-                and p['ref'] not in all_refs):
+                and p['ref'] not in all_refs
+                and p['ref'] not in exc_seen):
                 exc.append(p)
+                exc_seen.add(p['ref'])
 
         sections.append({
             'gw': s['gw'], 'currency': s['currency'], 'merchant': s['merchant'],

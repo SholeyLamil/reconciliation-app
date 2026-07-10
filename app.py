@@ -270,7 +270,11 @@ if uploaded_files:
             try:
                 pel_path = pelpay_file['path']
 
-                out_path = os.path.join(tmpdir, f'Reconciliation_{date_min.strftime("%Y-%m-%d")}_{date_max.strftime("%Y-%m-%d")}_MD_Format.xlsx')
+                if date_min == date_max:
+                    fname = f'Reconciliation_{date_min.strftime("%Y-%m-%d")}.xlsx'
+                else:
+                    fname = f'Reconciliation_{date_min.strftime("%Y-%m-%d")}_to_{date_max.strftime("%Y-%m-%d")}.xlsx'
+                out_path = os.path.join(tmpdir, fname)
 
                 with st.spinner('Running reconciliation…'):
                     result = run(pel_path, settle_items, dr, out_path)

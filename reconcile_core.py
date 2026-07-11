@@ -199,23 +199,39 @@ def _find_header_row(ws):
         return [str(v).strip() if v is not None else '' for v in row], rnum
     raise ValueError('Could not find header row in file')
 
+def _find_header_row_list(all_rows):
+    """Find the real header row in a list of CSV rows, skipping metadata rows."""
+    for i, row in enumerate(all_rows[:10]):
+        non_empty = sum(1 for v in row if v is not None and str(v).strip())
+        if non_empty < 3:
+            continue
+        combined = ' '.join(str(v or '') for v in row)
+        if any(kw in combined for kw in ['chamswitch', 'Report_', 'Daily_Classic']):
+            continue
+        return [str(v).strip() if v is not None else '' for v in row], i
+    raise ValueError('Could not find header row in file')
+
+def _num_or_str(v):
+    """Parse a cell to float, tolerating thousands separators (e.g. '16,072.25'); else str."""
+    s = v.strip()
+    try:
+        return float(s.replace(',', ''))
+    except ValueError:
+        return s
+
 def load_file_rows(fpath):
     """Load headers and data rows from .xlsx or .csv. Returns (headers, rows)."""
     if fpath.lower().endswith('.csv'):
         import csv
-        with open(fpath, 'r', encoding='utf-8-sig') as f:
-            reader = csv.reader(f)
-            headers = next(reader)
-            headers = [h.strip() for h in headers]
-            rows = []
-            for row in reader:
-                parsed = []
-                for v in row:
-                    if v is not None and v.strip():
-                        try: parsed.append(float(v))
-                        except: parsed.append(v.strip())
-                    else: parsed.append(v)
-                rows.append(tuple(parsed))
+        with open(fpath, 'r', encoding='utf-8-sig', newline='') as f:
+            all_rows = list(csv.reader(f))
+        headers, hi = _find_header_row_list(all_rows)
+        rows = []
+        for row in all_rows[hi + 1:]:
+            if not any(str(c).strip() for c in row):
+                continue
+            parsed = [(_num_or_str(v) if (v is not None and v.strip()) else v) for v in row]
+            rows.append(tuple(parsed))
         return headers, rows
     wb = openpyxl.load_workbook(fpath, data_only=True)
     ws = wb[wb.sheetnames[0]]

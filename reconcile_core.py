@@ -590,18 +590,19 @@ def build_summary(wb, sections, date_range, pel_by_ref):
     r += 1
     mr_headers = ['Merchant', 'Currency', 'Settled To You', 'Your Sales Today', 'Awaiting Settlement']
     write_header_row(ws, r, mr_headers); r += 1
-    for cur in ['NGN', 'USD']:
-        for merch, mc in sorted(k for k in recon if k[1] == cur):
-            a = recon[(merch, mc)]
-            succ = [p for p in pel_by_ref.values()
-                    if p['status'] == 'Successful' and p['currency'] == mc
-                    and p['merchant'].title() == merch and p['dt']
-                    and in_date_range(p['dt'], date_range) and p['ref']]
-            vals = [merch, mc, a['settled_total'],
-                    sum(p['collected'] or 0 for p in succ), a['not_yet_amt']]
-            for c, v in enumerate(vals, 1):
-                ws.cell(r, c, v)
-            r += 1
+    _cur_ord = {'NGN': 0, 'USD': 1}
+    # grouped by merchant (NGN then USD within each) so a merchant's rows sit together
+    for merch, mc in sorted(recon, key=lambda k: (k[0].lower(), _cur_ord.get(k[1], 9))):
+        a = recon[(merch, mc)]
+        succ = [p for p in pel_by_ref.values()
+                if p['status'] == 'Successful' and p['currency'] == mc
+                and p['merchant'].title() == merch and p['dt']
+                and in_date_range(p['dt'], date_range) and p['ref']]
+        vals = [merch, mc, a['settled_total'],
+                sum(p['collected'] or 0 for p in succ), a['not_yet_amt']]
+        for c, v in enumerate(vals, 1):
+            ws.cell(r, c, v)
+        r += 1
 
     r += 1
     ws.cell(r, 1, value='Successful Pelpay Transaction Summary').font = BLACK_BOLD; r += 1

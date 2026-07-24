@@ -574,6 +574,52 @@ def build_summary(wb, sections, date_range, pel_by_ref):
         for c, v in enumerate(vals, 1): ws.cell(r, c, v)
         r += 1
 
+    # ── Merchant Reconciliation (plain view) ─────────────────
+    # Bridges the two views per merchant so the "settled vs sales" gap is explained:
+    #   Settled Count = Matched Both + From Earlier Days + Not On Pelpay
+    #   Sales Count   = Matched Both + Awaiting Settlement
+    recon = defaultdict(lambda: {'settled_rows': 0, 'settled_total': 0.0, 'matched': 0,
+                                 'matched_same': 0, 'not_in_pelpay': 0,
+                                 'not_yet': 0, 'not_yet_amt': 0.0})
+    for sec in sections:
+        a = recon[(sec['merchant'], sec['currency'])]
+        ai = sec['s_idx'][sec['schema']['amount']]
+        a['settled_rows'] += len(sec['rows'])
+        a['settled_total'] += sum(rr[ai] for rr in sec['rows'] if isinstance(rr[ai], (int, float)))
+        a['matched'] += len(sec['matched'])
+        a['matched_same'] += sum(1 for m in sec['matched']
+                                 if m[1]['dt'] and in_date_range(m[1]['dt'], date_range))
+        a['not_in_pelpay'] += len(sec['unmatched'])
+        a['not_yet'] += len(sec['exceptions'])
+        a['not_yet_amt'] += sum(e['amount'] for e in sec['exceptions'])
+
+    r += 1
+    ws.cell(r, 1, value='Merchant Reconciliation (plain view)').font = BLACK_BOLD; r += 1
+    ws.cell(r, 1, value=('"Settled To You" = money settled to you in this batch.   '
+                         '"Your Sales Today" = your successful transactions on this date (Pelpay).   '
+                         '"Matched Both" = in both.   "From Earlier Days" = older sales settling now.   '
+                         '"Not On Pelpay" = settled but no successful Pelpay record.   '
+                         '"Awaiting Settlement" = today’s sales not settled yet.')).font = Font(italic=True)
+    r += 1
+    mr_headers = ['Merchant', 'Currency', 'Settled To You', 'Settled Count',
+                  'Your Sales Today', 'Sales Count', 'Matched Both', 'From Earlier Days',
+                  'Not On Pelpay', 'Awaiting Settlement', 'Awaiting Amount']
+    write_header_row(ws, r, mr_headers); r += 1
+    for cur in ['NGN', 'USD']:
+        for merch, mc in sorted(k for k in recon if k[1] == cur):
+            a = recon[(merch, mc)]
+            succ = [p for p in pel_by_ref.values()
+                    if p['status'] == 'Successful' and p['currency'] == mc
+                    and p['merchant'].title() == merch and p['dt']
+                    and in_date_range(p['dt'], date_range) and p['ref']]
+            vals = [merch, mc, a['settled_total'], a['settled_rows'],
+                    sum(p['collected'] or 0 for p in succ), len(succ),
+                    a['matched_same'], a['matched'] - a['matched_same'],
+                    a['not_in_pelpay'], a['not_yet'], a['not_yet_amt']]
+            for c, v in enumerate(vals, 1):
+                ws.cell(r, c, v)
+            r += 1
+
     r += 1
     ws.cell(r, 1, value='Successful Pelpay Transaction Summary').font = BLACK_BOLD; r += 1
     ps_headers = ['Merchant', 'Currency', 'Successful Count', 'Gross Total',

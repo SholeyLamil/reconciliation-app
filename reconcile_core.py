@@ -475,7 +475,7 @@ def daily_stats_for_sec(sec, d, pel_by_ref):
     }
 
 def build_summary(wb, sections, date_range, pel_by_ref):
-    ws = wb.create_sheet('SUMMARY', 0)
+    ws = wb.create_sheet('Settlement Summary Details', 0)
     label = date_label(date_range)
     is_range = isinstance(date_range, tuple)
     end_date = date_range[1] if is_range else date_range
@@ -597,7 +597,7 @@ def build_summary(wb, sections, date_range, pel_by_ref):
     autosize(ws, len(sum_headers))
 
 def build_received(wb, sections, date_range, pel_by_ref, all_merchant_cur):
-    ws = wb.create_sheet('All received Transactions')
+    ws = wb.create_sheet('All Received Transactions')
     label = date_label(date_range)
     ncols = len(PELPAY_FIELDS) + 1
     r = 1
@@ -665,7 +665,7 @@ def build_missing_sheets(wb, sections, date_range, all_merchant_cur):
                    'pelpay_payment_reference']
 
     # ── Sheet 1: Missing from Settlement (Pelpay-only) ─────────────────
-    ws = wb.create_sheet('Missing from Settlement')
+    ws = wb.create_sheet('Unsettled Transactions')
     r = 1
     write_title_row(ws, r, 7, f'In Pelpay But Not Found in Settlement \u2013 {label}')
     r += 2
@@ -705,7 +705,7 @@ def build_missing_sheets(wb, sections, date_range, all_merchant_cur):
     autosize(ws, 7)
 
     # ── Sheet 2: Missing from Pelpay (Settlement-only) ────────────────
-    ws2 = wb.create_sheet('Missing from Pelpay')
+    ws2 = wb.create_sheet('Not Successful on Pelpay')
     r = 1
     write_title_row(ws2, r, 7, f'In Settlement But Not Found in Pelpay \u2013 {label}')
     r += 2
@@ -761,10 +761,19 @@ def build_settlement_sheets(wb, sections, date_range):
         cur, merchant, gw = sec['currency'], sec['merchant'], sec['gw']
         s_headers, schema = sec['headers'], sec['schema']
         end_date = date_range[1] if isinstance(date_range, tuple) else date_range
-        short = merchant.replace(' Limited', '').replace(' Ltd', '') \
+        clean = merchant.replace(' Limited', '').replace(' Ltd', '') \
                          .replace(' Outfitters', '').replace(' Technology', '') \
-                         .replace(' Fashions', '')[:18]
-        sheet_name = f'{short} {cur} {end_date.strftime("%d%b").upper()}'[:31]
+                         .replace(' Fashions', '')
+        # Format: "<merchant> Settlement Trans <cur>" — Excel caps sheet names at 31,
+        # so the merchant name is truncated to fill the remaining space.
+        suffix = f' Settlement Trans {cur}'
+        short = clean[:31 - len(suffix)].strip()
+        base = f'{short}{suffix}'[:31]
+        sheet_name, dup = base, 2
+        while sheet_name in wb.sheetnames:            # guard against truncation collisions
+            tag = f'~{dup}'
+            sheet_name = f'{short[:31 - len(suffix) - len(tag)]}{tag}{suffix}'[:31]
+            dup += 1
         ws = wb.create_sheet(sheet_name)
         r, ncols = 1, len(s_headers) + 6
         title = f'{merchant} {cur} \u2013 Settlement {label} ({gw})'

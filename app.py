@@ -289,7 +289,7 @@ if uploaded_files:
                 c1, c2, c3 = st.columns(3)
                 c1.metric('Settlement Rows', result['settle_rows'])
                 c2.metric('Matched', result['matched'])
-                c3.metric('Missing from Settlement', result['exceptions'])
+                c3.metric('Unsettled Transactions', result['exceptions'])
                 st.write('Sheets:', ', '.join(result['sheets']))
 
                 with open(out_path, 'rb') as fh:
